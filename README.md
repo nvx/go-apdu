@@ -1,17 +1,16 @@
 # APDU
 
-[![Build Status](https://travis-ci.org/skythen/apdu.svg?branch=master)](https://travis-ci.org/skythen/apdu)
-[![Coverage Status](https://coveralls.io/repos/github/skythen/apdu/badge.svg)](https://coveralls.io/github/skythen/apdu)
-[![GoDoc](https://godoc.org/github.com/skythen/apdu?status.svg)](http://godoc.org/github.com/skythen/apdu)
-[![Go Report Card](https://goreportcard.com/badge/github.com/skythen/apdu)](https://goreportcard.com/report/github.com/skythen/apdu)
+[![GoDoc](https://godoc.org/github.com/nvx/go-apdu?status.svg)](http://godoc.org/github.com/nvx/go-apdu)
+[![Go Report Card](https://goreportcard.com/badge/github.com/nvx/go-apdu)](https://goreportcard.com/report/github.com/nvx/go-apdu)
 
 Package apdu implements parsing and conversion of Application Protocol Data Units (APDU) which is the communication
 format between a card and off-card applications. The format of the APDU is defined
 in [ISO specification 7816-4](https://www.iso.org/obp/ui/#iso:std:iso-iec:7816:-4:en).
 
-The package has support for extended length APDUs as well.
+The package has support for extended length APDUs as well if the APDU length is larger than what is supported by
+standard length APDUs, or extended length can be forced by using `Capdu.BytesExtended()`.
 
-`go get github.com/skythen/apdu`
+`go get github.com/nvx/go-apdu`
 
 ## Capdu
 
@@ -20,10 +19,10 @@ The package has support for extended length APDUs as well.
 You can create a Capdu either by creating a Capdu struct:
 
 ```go
-  capduCase1 := Capdu{Cla: 0x00, Ins: 0xAB, P1: 0xCD, P2: 0xEF}
-  capduCase2 := Capdu{Cla: 0x80, Ins: 0xCA, P1: 0x00, P2: 0x66, Ne: 256}
-  capduCase3 := Capdu{Cla: 0x80, Ins: 0xF2, P1: 0xE0, P2: 0x02, Data: []byte{0x4F, 0x00}, Ne: 256}
-  capduCase4 := Capdu{Cla: 0x00, Ins: 0xAA, P1: 0xBB, P2: 0xCC, Data: make([]byte, 65535), Ne: 65536}
+  capduCase1 := Capdu{CLA: 0x00, INS: 0xAB, P1: 0xCD, P2: 0xEF}
+  capduCase2 := Capdu{CLA: 0x80, INS: 0xCA, P1: 0x00, P2: 0x66, Ne: 256}
+  capduCase3 := Capdu{CLA: 0x80, INS: 0xF2, P1: 0xE0, P2: 0x02, Data: []byte{0x4F, 0x00}, Ne: 256}
+  capduCase4 := Capdu{CLA: 0x00, INS: 0xAA, P1: 0xBB, P2: 0xCC, Data: make([]byte, 65535), Ne: 65536}
 ```
 
 (please note that Ne is the expected length of response in bytes, not encoded as Le)
@@ -44,6 +43,14 @@ inferred and applied automatically.
 
 ```go
   b, err := capdu.Bytes()
+```
+
+#### BytesExtended
+
+BytesExtended works the same as the Bytes func except forces extended APDU encoding 
+
+```go
+  b, err := capdu.BytesExtended()
 ```
 
 #### String
