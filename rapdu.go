@@ -9,11 +9,11 @@ import (
 
 const (
 	// MaxLenResponseDataStandard defines the maximum response data length of a standard length R-APDU.
-	MaxLenResponseDataStandard int = 256
+	MaxLenResponseDataStandard = 256
 	// MaxLenResponseDataExtended defines the maximum response data length of an extended length R-APDU.
-	MaxLenResponseDataExtended int = 65536
+	MaxLenResponseDataExtended = 65536
 	// LenResponseTrailer defines the length of the trailer of a Response APDU.
-	LenResponseTrailer int = 2
+	LenResponseTrailer = 2
 )
 
 // Rapdu is a Response APDU.
@@ -33,7 +33,7 @@ func (r Rapdu) LogValue() slog.Value {
 
 // ParseRapdu parses a Response APDU and returns a Rapdu.
 func ParseRapdu(b []byte) (_ Rapdu, err error) {
-	if len(b) < LenResponseTrailer || len(b) > 65538 {
+	if len(b) < LenResponseTrailer || len(b) > MaxLenResponseDataExtended+LenResponseTrailer {
 		return Rapdu{}, fmt.Errorf("%s: invalid length - a RAPDU must consist of at least 2 byte and maximum of 65538 byte, got %d", packageTag, len(b))
 	}
 
@@ -50,7 +50,7 @@ func ParseRapduHexString(s string) (Rapdu, error) {
 		return Rapdu{}, fmt.Errorf("%s: uneven number of hex characters", packageTag)
 	}
 
-	if len(s) < 4 || len(s) > 131076 {
+	if len(s)/2 < LenResponseTrailer || len(s)/2 > MaxLenResponseDataExtended+LenResponseTrailer {
 		return Rapdu{}, fmt.Errorf("%s: invalid length of hex string - a RAPDU must consist of at least 2 byte and maximum of 65538 byte, got %d", packageTag, len(s)/2)
 	}
 

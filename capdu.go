@@ -11,33 +11,37 @@ import (
 )
 
 const (
-	// OffsetCLA defines the offset to the CLA byte of a C-APDU.
-	OffsetCLA int = 0
-	// OffsetINS defines the offset to the INS byte of a C-APDU.
-	OffsetINS int = 1
-	// OffsetP1 defines the offset to the P1 byte of a C-APDU.
-	OffsetP1 int = 2
-	// OffsetP2 defines the offset to the P2 byte of a C-APDU.
-	OffsetP2 int = 3
-	// OffsetLcStandard defines the offset to the LC byte of a standard length C-APDU.
-	OffsetLcStandard int = 4
-	// OffsetLcExtended defines the offset to the LC byte of an extended length C-APDU.
-	OffsetLcExtended int = 5
-	// OffsetCdataStandard defines the offset to the beginning of the data field of a standard length C-APDU.
-	OffsetCdataStandard int = 5
-	// OffsetCdataExtended defines the offset to the beginning of the data field of an extended length C-APDU.
-	OffsetCdataExtended int = 7
-	// MaxLenCommandDataStandard defines the maximum command data length of a standard length C-APDU.
-	MaxLenCommandDataStandard int = 255
-	// MaxLenCommandDataExtended defines the maximum command data length of an extended length C-APDU.
-	MaxLenCommandDataExtended int = 65535
+	// OffsetCLA defines the offset to the CLA byte of a cAPDU.
+	OffsetCLA = 0
+	// OffsetINS defines the offset to the INS byte of a cAPDU.
+	OffsetINS = 1
+	// OffsetP1 defines the offset to the P1 byte of a cAPDU.
+	OffsetP1 = 2
+	// OffsetP2 defines the offset to the P2 byte of a cAPDU.
+	OffsetP2 = 3
+	// OffsetLcStandard defines the offset to the LC byte of a standard cAPDU.
+	OffsetLcStandard = 4
+	// OffsetLcExtended defines the offset to the LC byte of an extended cAPDU.
+	OffsetLcExtended = 5
+	// OffsetCdataStandard defines the offset to the beginning of the data field of a standard cAPDU.
+	OffsetCdataStandard = 5
+	// OffsetCdataExtended defines the offset to the beginning of the data field of an extended cAPDU.
+	OffsetCdataExtended = 7
+	// MaxLenCommandDataStandard defines the maximum command data length of a standard cAPDU.
+	MaxLenCommandDataStandard = 255
+	// MaxLenCommandDataExtended defines the maximum command data length of an extended cAPDU.
+	MaxLenCommandDataExtended = 65535
 	// LenHeader defines the length of the header of an APDU.
-	LenHeader int = 4
-	// LenLCStandard defines the length of the LC of a standard length APDU.
-	LenLCStandard int = 1
-	// LenLCExtended defines the length of the LC of an extended length APDU.
-	LenLCExtended int    = 3
-	packageTag    string = "apdu"
+	LenHeader = 4
+	// LenLcStandard defines the length of the Lc of a standard APDU.
+	LenLcStandard = 1
+	// LenLeStandard defines the length of the Le of a standard APDU.
+	LenLeStandard = 1
+	// LenLcExtended defines the length of the Lc of an extended APDU.
+	LenLcExtended = 3
+	// LenLeExtended defines the length of the Le of an extended APDU.
+	LenLeExtended = 2
+	packageTag    = "apdu"
 )
 
 // Capdu is a Command APDU.
@@ -61,68 +65,10 @@ func ParseCapdu(c []byte) (Capdu, error) {
 		return Capdu{CLA: c[OffsetCLA], INS: c[OffsetINS], P1: c[OffsetP1], P2: c[OffsetP2]}, nil
 	}
 
-	// check for zero byte
-	if c[OffsetLcStandard] == 0x00 {
-		// check for extended length Capdu
-		if len(c[OffsetLcExtended:]) > 0 {
-			// EXTENDED CASE 2 command: HEADER | LE
-			// in this case no LC is present, but the two byte LE with leading zero byte
-			if len(c) == LenHeader+LenLCExtended {
-				ne := 0
-				le := int(binary.BigEndian.Uint16(c[OffsetLcExtended:]))
-
-				if le == 0x00 {
-					ne = MaxLenResponseDataExtended
-				} else {
-					ne = le
-				}
-
-				return Capdu{CLA: c[OffsetCLA], INS: c[OffsetINS], P1: c[OffsetP1], P2: c[OffsetP2], Ne: ne}, nil
-			}
-
-			// Dodgy broken HID reader request
-			if len(c) == LenHeader+2 {
-				le := binary.BigEndian.Uint16(c[OffsetLcStandard:])
-				if le != 0 {
-					return Capdu{}, fmt.Errorf("%s: invalid Le value %d in HID hack handler", packageTag, le)
-				}
-				return Capdu{CLA: c[OffsetCLA], INS: c[OffsetINS], P1: c[OffsetP1], P2: c[OffsetP2], Ne: 256}, nil
-			}
-
-			bodyLen := len(c) - LenHeader
-
-			lc := int(binary.BigEndian.Uint16(c[OffsetLcExtended : OffsetLcExtended+2]))
-			if lc != bodyLen-LenLCExtended && lc != bodyLen-LenLCExtended-2 {
-				return Capdu{}, fmt.Errorf("%s: invalid LC value - LC indicates data length %d", packageTag, lc)
-			}
-
-			data := c[OffsetCdataExtended : OffsetCdataExtended+lc]
-
-			// EXTENDED CASE 3 command: HEADER | LC | DATA
-			if len(c) == LenHeader+LenLCExtended+len(data) {
-				return Capdu{CLA: c[OffsetCLA], INS: c[OffsetINS], P1: c[OffsetP1], P2: c[OffsetP2], Data: data, Ne: 0}, nil
-			}
-
-			// EXTENDED CASE 4 command: HEADER | LC | DATA | LE
-			ne := 0
-
-			le := int(binary.BigEndian.Uint16(c[len(c)-2:]))
-
-			if le == 0x00 {
-				ne = MaxLenResponseDataExtended
-			} else {
-				ne = le
-			}
-
-			return Capdu{CLA: c[OffsetCLA], INS: c[OffsetINS], P1: c[OffsetP1], P2: c[OffsetP2], Data: data, Ne: ne}, nil
-		}
-	}
-
-	ne := 0
-	// STANDARD CASE 2 command: HEADER | LE
-	if len(c) == LenHeader+LenLCStandard {
-		// in this case, no LC is present
-		ne = int(c[OffsetLcStandard])
+	// STANDARD CASE 2 command: HEADER | Le
+	if len(c) == LenHeader+LenLeStandard {
+		// in this case, no Lc is present
+		ne := int(c[OffsetLcStandard])
 		if ne == 0 {
 			return Capdu{CLA: c[OffsetCLA], INS: c[OffsetINS], P1: c[OffsetP1], P2: c[OffsetP2], Data: nil, Ne: MaxLenResponseDataStandard}, nil
 		}
@@ -130,22 +76,79 @@ func ParseCapdu(c []byte) (Capdu, error) {
 		return Capdu{CLA: c[OffsetCLA], INS: c[OffsetINS], P1: c[OffsetP1], P2: c[OffsetP2], Data: nil, Ne: ne}, nil
 	}
 
+	// Handle extended APDUs indicated by 00 byte after header and not standard case 2
+	if c[OffsetLcStandard] == 0x00 {
+		// EXTENDED CASE 2 command: HEADER | Le
+		// in this case no Lc is present, but the two byte Le with leading zero byte
+		if len(c) == LenHeader+1+LenLeExtended {
+			ne := 0
+			le := int(binary.BigEndian.Uint16(c[OffsetLcExtended:]))
+
+			if le == 0x00 {
+				ne = MaxLenResponseDataExtended
+			} else {
+				ne = le
+			}
+
+			return Capdu{CLA: c[OffsetCLA], INS: c[OffsetINS], P1: c[OffsetP1], P2: c[OffsetP2], Ne: ne}, nil
+		}
+
+		// Dodgy broken HID reader request
+		// Normally this should have the leading 00 byte before Le when Lc is absent if this is really extended, or
+		// if standard the Lc byte should have been omitted when there is no command.
+		// The sanest interpretation is this should have been a standard case 2 but the Lc byte was accidentally included
+		// For safety only handle the case of Ne == 256 as this is the only case seen in the wild.
+		if len(c) == LenHeader+2 {
+			le := c[5]
+			if le != 0 {
+				return Capdu{}, fmt.Errorf("%s: invalid Le value %d in HID hack handler", packageTag, le)
+			}
+			return Capdu{CLA: c[OffsetCLA], INS: c[OffsetINS], P1: c[OffsetP1], P2: c[OffsetP2], Ne: 256}, nil
+		}
+
+		bodyLen := len(c) - LenHeader
+
+		lc := int(binary.BigEndian.Uint16(c[OffsetLcExtended:]))
+		if lc != bodyLen-LenLcExtended && lc != bodyLen-LenLcExtended-LenLeExtended {
+			return Capdu{}, fmt.Errorf("%s: invalid Lc value - Lc indicates data length %d", packageTag, lc)
+		}
+
+		data := c[OffsetCdataExtended : OffsetCdataExtended+lc]
+
+		// EXTENDED CASE 3 command: HEADER | Lc | DATA
+		if len(c) == LenHeader+LenLcExtended+len(data) {
+			return Capdu{CLA: c[OffsetCLA], INS: c[OffsetINS], P1: c[OffsetP1], P2: c[OffsetP2], Data: data, Ne: 0}, nil
+		}
+
+		// EXTENDED CASE 4 command: HEADER | Lc | DATA | Le
+		ne := 0
+		le := int(binary.BigEndian.Uint16(c[len(c)-2:]))
+		if le == 0x00 {
+			ne = MaxLenResponseDataExtended
+		} else {
+			ne = le
+		}
+
+		return Capdu{CLA: c[OffsetCLA], INS: c[OffsetINS], P1: c[OffsetP1], P2: c[OffsetP2], Data: data, Ne: ne}, nil
+	}
+
 	bodyLen := len(c) - LenHeader
 
-	// check if lc indicates valid length
+	// check if Lc indicates valid length
 	lc := int(c[OffsetLcStandard])
-	if lc != bodyLen-LenLCStandard && lc != bodyLen-LenLCStandard-1 {
+	if lc != bodyLen-LenLcStandard && lc != bodyLen-LenLcStandard-1 {
 		return Capdu{}, fmt.Errorf("%s: invalid Lc value - Lc indicates length %d", packageTag, lc)
 	}
 
 	data := c[OffsetCdataStandard : OffsetCdataStandard+lc]
 
-	// STANDARD CASE 3 command: HEADER | LC | DATA
-	if len(c) == LenHeader+LenLCStandard+len(data) {
+	// STANDARD CASE 3 command: HEADER | Lc | DATA
+	if len(c) == LenHeader+LenLcStandard+len(data) {
 		return Capdu{CLA: c[OffsetCLA], INS: c[OffsetINS], P1: c[OffsetP1], P2: c[OffsetP2], Data: data}, nil
 	}
 
-	// STANDARD CASE 4 command: HEADER | LC | DATA | LE
+	var ne int
+	// STANDARD CASE 4 command: HEADER | Lc | DATA | Le
 	if le := int(c[len(c)-1]); le == 0 {
 		ne = MaxLenResponseDataStandard
 	} else {
@@ -185,72 +188,28 @@ func (c Capdu) Bytes() ([]byte, error) {
 		return nil, fmt.Errorf("%s: ne %d exceeds maximum allowed length of %d", packageTag, len(c.Data), MaxLenResponseDataExtended)
 	}
 
+	if dataLen > MaxLenCommandDataStandard || c.Ne > MaxLenResponseDataStandard {
+		return c.BytesExtended()
+	}
+
 	switch {
 	case len(c.Data) == 0 && c.Ne == 0:
 		// CASE 1: HEADER
 		return []byte{c.CLA, c.INS, c.P1, c.P2}, nil
 	case len(c.Data) == 0 && c.Ne > 0:
-		// CASE 2: HEADER | LE
-		if c.Ne > MaxLenResponseDataStandard {
-			le := make([]byte, LenLCExtended) // first byte is zero byte, so LE length is equal to LC length
-
-			if c.Ne == MaxLenResponseDataExtended {
-				le[1] = 0x00
-				le[2] = 0x00
-			} else {
-				le[1] = (byte)((c.Ne >> 8) & 0xFF)
-				le[2] = (byte)(c.Ne & 0xFF)
-			}
-
-			result := make([]byte, 0, LenHeader+LenLCExtended)
-			result = append(result, c.CLA, c.INS, c.P1, c.P2)
-			result = append(result, le...)
-
-			return result, nil
-		}
-
-		// standard format
-		result := make([]byte, 0, LenHeader+LenLCStandard)
-		result = append(result, c.CLA, c.INS, c.P1, c.P2)
-
-		if c.Ne == MaxLenResponseDataStandard {
-			result = append(result, 0x00)
-		} else {
-			result = append(result, byte(c.Ne))
-		}
-
-		return result, nil
+		// CASE 2: HEADER | Le
+		return []byte{c.CLA, c.INS, c.P1, c.P2, (byte)((c.Ne) & 0xFF)}, nil
 	case len(c.Data) != 0 && c.Ne == 0:
-		// CASE 3: HEADER | LC | DATA
-		if len(c.Data) > MaxLenCommandDataStandard {
-			// extended length format
-			lc := make([]byte, LenLCExtended)
-			lc[1] = (byte)((dataLen >> 8) & 0xFF)
-			lc[2] = (byte)(dataLen & 0xFF)
-
-			result := make([]byte, 0, LenHeader+LenLCExtended+dataLen)
-			result = append(result, c.CLA, c.INS, c.P1, c.P2)
-			result = append(result, lc...)
-			result = append(result, c.Data...)
-
-			return result, nil
-		}
-
-		// standard format
-		result := make([]byte, 0, LenHeader+1+dataLen)
+		// CASE 3: HEADER | Lc | DATA
+		result := make([]byte, 0, LenHeader+LenLcStandard+dataLen)
 		result = append(result, c.CLA, c.INS, c.P1, c.P2, byte(dataLen))
 		result = append(result, c.Data...)
 
 		return result, nil
 	}
 
-	// CASE 4: HEADER | LC | DATA | LE
-	if c.Ne > MaxLenResponseDataStandard || len(c.Data) > MaxLenCommandDataStandard {
-		return c.BytesExtended()
-	}
-
-	// standard format
-	result := make([]byte, 0, LenHeader+LenLCStandard+dataLen+1)
+	// CASE 4: HEADER | Lc | DATA | Le
+	result := make([]byte, 0, LenHeader+LenLcStandard+dataLen+LenLeStandard)
 	result = append(result, c.CLA, c.INS, c.P1, c.P2, byte(dataLen))
 	result = append(result, c.Data...)
 	result = append(result, byte(c.Ne))
@@ -259,6 +218,7 @@ func (c Capdu) Bytes() ([]byte, error) {
 }
 
 // BytesExtended returns the byte representation of the Capdu forcing extended form.
+// If both Nc and Ne are 0 then Ne will be treated as MaxLenResponseDataExtended to force extended APDU form
 func (c Capdu) BytesExtended() ([]byte, error) {
 	dataLen := len(c.Data)
 
@@ -270,26 +230,22 @@ func (c Capdu) BytesExtended() ([]byte, error) {
 		return nil, fmt.Errorf("%s: ne %d exceeds maximum allowed length of %d", packageTag, len(c.Data), MaxLenResponseDataExtended)
 	}
 
-	// extended length format
-	lc := make([]byte, LenLCExtended) // first byte is zero byte
-	lc[1] = (byte)((dataLen >> 8) & 0xFF)
-	lc[2] = (byte)(dataLen & 0xFF)
-
-	le := make([]byte, 2)
-
-	if c.Ne == MaxLenResponseDataExtended {
-		le[0] = 0x00
-		le[1] = 0x00
-	} else {
-		le[0] = (byte)((c.Ne >> 8) & 0xFF)
-		le[1] = (byte)(c.Ne & 0xFF)
+	var leLen int
+	if c.Ne > 0 {
+		// if there is no Nc nor Ne then the Le bytes are covered by the Lc bytes in the buffer
+		leLen = LenLeExtended
 	}
 
-	result := make([]byte, 0, LenHeader+LenLCExtended+dataLen+len(le))
-	result = append(result, c.CLA, c.INS, c.P1, c.P2)
-	result = append(result, lc...)
-	result = append(result, c.Data...)
-	result = append(result, le...)
+	result := make([]byte, 0, LenHeader+LenLcExtended+dataLen+leLen)
+	result = append(result, c.CLA, c.INS, c.P1, c.P2, 0x00)
+	if dataLen > 0 {
+		result = append(result, (byte)((dataLen>>8)&0xFF), (byte)(dataLen&0xFF))
+		result = append(result, c.Data...)
+	}
+	if c.Ne > 0 || dataLen == 0 {
+		// technically can't have an extended payload with both Nc == 0 and Ne == 0, so force adding a max length Ne
+		result = append(result, (byte)((c.Ne>>8)&0xFF), (byte)(c.Ne&0xFF))
+	}
 
 	return result, nil
 }
