@@ -1,6 +1,6 @@
 # APDU
 
-[![GoDoc](https://godoc.org/github.com/nvx/go-apdu?status.svg)](http://godoc.org/github.com/nvx/go-apdu)
+[![GoDoc](https://pkg.go.dev/badge/github.com/nvx/go-apdu)](https://pkg.go.dev/github.com/nvx/go-apdu)
 [![Go Report Card](https://goreportcard.com/badge/github.com/nvx/go-apdu)](https://goreportcard.com/report/github.com/nvx/go-apdu)
 
 Package apdu implements parsing and conversion of Application Protocol Data Units (APDU) which is the communication
